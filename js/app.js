@@ -6,7 +6,10 @@ import { saveRecording, allRecordings } from './store.js';
 
 const app = document.getElementById('app');
 const params = new URLSearchParams(location.search);
-const DEMO = params.has('demo') ? 0.1 : 1;
+// ?demo=1: the teacher's try-out, with the real clocks; the sheet marks it "demo".
+const DEMO = params.has('demo');
+// ?quick=1 shortens every clock to 10 % (for testing the page only).
+const SCALE = params.has('quick') ? 0.1 : 1;
 const SESSION = 'exam.session';
 
 const esc = (s) =>
@@ -70,7 +73,7 @@ async function renderStart(error = '') {
   const pre = Number(params.get('v')) || saved.speaker || '';
   app.innerHTML = `<main class="screen start">
     <section class="start-hero">
-      <p class="eyebrow">Speaking Exam${DEMO < 1 ? ' · <b>demo: short clocks</b>' : ''}</p>
+      <p class="eyebrow">Speaking Exam${DEMO ? ' · <b>demo</b>' : ''}</p>
       <h1>Speak when the clock says so.</h1>
       <p class="lede">Seven questions in three parts, in the TOEIC® Speaking format. A clock counts down the time to
         prepare; when it reaches zero you hear a beep, your microphone turns on, and it records until the time is up.</p>
@@ -119,7 +122,7 @@ async function submitStart(form) {
       speaker: Number(data.speaker),
       attempt: newId(),
       version,
-      steps: buildTimeline(version, { scale: DEMO }),
+      steps: buildTimeline(version, { scale: SCALE }),
       stepIndex: 0,
       done: [],
       leftPage: 0,
@@ -308,7 +311,7 @@ async function runExam() {
   keepAwake();
   const clock = app.querySelector('.clock');
   const recEl = app.querySelector('[data-rec]');
-  if (S.stepIndex === 0) report({ type: 'start', attempt: S.attempt, student: S.student, speaker: S.speaker, demo: DEMO < 1, startedAt: new Date().toISOString(), userAgent: navigator.userAgent });
+  if (S.stepIndex === 0) report({ type: 'start', attempt: S.attempt, student: S.student, speaker: S.speaker, demo: DEMO || SCALE < 1, startedAt: new Date().toISOString(), userAgent: navigator.userAgent });
 
   for (let i = S.stepIndex; i < S.steps.length; i++) {
     S.stepIndex = i;
@@ -480,9 +483,9 @@ async function renderTeacher(message = '') {
     </section>
     <section class="card">
       <h2>3 · Try it</h2>
-      <p>Students write their name, choose their speaker and start: there is no exam code. Try the whole exam with short
-        clocks; your answers go to your sheet like a student’s.</p>
-      <p><a class="btn ghost" href="${esc(link('demo=1'))}">Try the exam with short clocks</a></p>
+      <p>Students write their name, choose their speaker and start: there is no exam code. Try the whole exam with its real
+        clocks (about 9 minutes); your answers go to your sheet like a student’s, marked <i>demo</i>.</p>
+      <p><a class="btn ghost" href="${esc(link('demo=1'))}">Try the exam</a></p>
     </section>
   </main>`;
 }
@@ -559,7 +562,7 @@ async function start() {
   if (saved && !saved.finished) {
     try {
       const version = await loadVersion(saved.speaker);
-      S = { ...saved, version, steps: buildTimeline(version, { scale: DEMO }) };
+      S = { ...saved, version, steps: buildTimeline(version, { scale: SCALE }) };
       S.stepIndex = resumeIndex(S.steps, S.done);
       S.resumed = (S.resumed || 0) + 1;
       persist();
@@ -571,7 +574,7 @@ async function start() {
   if (saved?.finished) {
     try {
       const version = await loadVersion(saved.speaker);
-      S = { ...saved, version, steps: buildTimeline(version, { scale: DEMO }) };
+      S = { ...saved, version, steps: buildTimeline(version, { scale: SCALE }) };
       return renderDone();
     } catch {
       clearSession();

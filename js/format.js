@@ -44,7 +44,7 @@ export const RESPONSES = [
   { id: 'q7', part: 'questions', label: 'Question 7', short: '7' },
 ];
 
-// Every step of the exam, in order. `scale` shortens the clocks (teacher's demo).
+// Every step of the exam, in order. `scale` shortens the clocks (quick tests of the page).
 //   intro     – general directions, spoken
 //   part      – a part's directions, spoken; the part's content appears
 //   say       – the narrator or a question, spoken

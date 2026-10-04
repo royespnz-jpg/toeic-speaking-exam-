@@ -1,4 +1,4 @@
-/* ── Speaking Exam · parte 3 de 6 ── */
+/* ── Speaking Exam · parte 3 de 5 ── */
 
 function start_(d) {
   const who = person_(d);
@@ -74,4 +74,4 @@ function recording_(d) {
   return { ok: true, url: url, id: file.getId() };
 }
 
-/* ── fin de la parte 3 de 6 ── */
+/* ── fin de la parte 3 de 5 ── */

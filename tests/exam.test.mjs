@@ -2,14 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { buildTimeline, timedSeconds, RESPONSES, PARTS } from '../js/format.js';
-import { decrypt, MAGIC, WrongCodeError } from '../js/crypto.js';
-import { encrypt, parseExam, slideParagraphs } from '../scripts/build-exam.mjs';
+import { parseExam, slideParagraphs } from '../scripts/build-exam.mjs';
 import { fmt } from '../js/clock.js';
 
 const VERSION = {
   n: 3,
   readAloud: 'A text to read.',
-  picture: 'data:image/jpeg;base64,AAAA',
+  picture: 'v03.jpg',
   narrator: 'Imagine that…',
   questions: ['First?', 'Second?', 'Third?', 'Fourth?'],
 };
@@ -55,14 +54,6 @@ test('the clock shows mm:ss and rounds up', () => {
   assert.equal(fmt(-1), '00:00');
 });
 
-test('a version opens with its code (any case) and not without it', async () => {
-  const bin = await encrypt(VERSION, 'SPK-ABCD-EFGH', 1000);
-  assert.deepEqual([...bin.subarray(0, 4)], MAGIC);
-  assert.ok(!bin.toString('latin1').includes('A text to read'), 'the text must not be readable');
-  assert.deepEqual(await decrypt(bin, ' spk-abcd-efgh ', 1000), VERSION);
-  await assert.rejects(decrypt(bin, 'SPK-ABCD-EFGX', 1000), WrongCodeError);
-});
-
 test('the deck is read into versions', () => {
   assert.deepEqual(slideParagraphs('<a:p xmlns:a="x"><a:r><a:t>Hello &amp; </a:t></a:r><a:r><a:t xml:space="preserve">world</a:t></a:r></a:p><a:p/>'), ['Hello & world']);
   const slides = [
@@ -88,14 +79,22 @@ test('the deck is read into versions', () => {
   assert.throws(() => parseExam(slides.slice(0, 3)), /Speaking 1: no narrator, questions/);
 });
 
-test('the published exam files are the encrypted versions in the manifest', () => {
+test('the published exam: every version in the manifest, with its text, picture and four questions', () => {
   const dir = new URL('../exam/', import.meta.url);
   const manifest = JSON.parse(readFileSync(new URL('manifest.json', dir)));
-  const files = readdirSync(dir).filter((f) => f.endsWith('.bin')).sort();
-  assert.deepEqual(files, manifest.versions.map((n) => `v${String(n).padStart(2, '0')}.bin`));
-  for (const f of files) {
-    const bin = readFileSync(new URL(f, dir));
-    assert.deepEqual([...bin.subarray(0, 4)], MAGIC, f);
-    assert.ok(!/Question|Narrator|the /.test(bin.toString('latin1', 0, 4000)), `${f} looks readable`);
+  assert.deepEqual(manifest.versions, Array.from({ length: 14 }, (_, i) => i + 1));
+  const files = readdirSync(dir).filter((f) => f !== 'manifest.json').sort();
+  assert.deepEqual(files, manifest.versions.flatMap((n) => [`v${String(n).padStart(2, '0')}.jpg`, `v${String(n).padStart(2, '0')}.json`]));
+  for (const n of manifest.versions) {
+    const name = `v${String(n).padStart(2, '0')}`;
+    const v = JSON.parse(readFileSync(new URL(`${name}.json`, dir)));
+    assert.equal(v.n, n);
+    assert.equal(v.picture, `${name}.jpg`);
+    assert.ok(v.readAloud.length > 200, `${name}: the text to read`);
+    assert.ok(v.narrator.length > 20, `${name}: the narrator`);
+    assert.equal(v.questions.length, 4, `${name}: four questions`);
+    const jpg = readFileSync(new URL(v.picture, dir));
+    assert.deepEqual([...jpg.subarray(0, 3)], [0xff, 0xd8, 0xff], `${name}: the picture is a JPEG`);
+    assert.equal(buildTimeline(v).filter((s) => s.type === 'response').length, 6);
   }
 });

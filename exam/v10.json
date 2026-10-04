@@ -1,0 +1,12 @@
+{
+  "n": 10,
+  "readAloud": "As artificial intelligence systems become more capable, researchers disagree about how quickly serious risks may appear. Advanced tools could improve medicine, science, education, and productivity. At the same time, a powerful system might be misused for cyberattacks, manipulation, or other harmful purposes. Safety becomes especially difficult when developers cannot fully explain or predict a model’s behavior. Some experts support faster innovation with testing along the way, while others argue that certain projects should pause until stronger protections exist. The debate is not simply between optimism and fear. It concerns who makes decisions, what evidence is required, and who is responsible when harm occurs. Good governance must protect the public while allowing useful research, and it must be able to respond as the technology changes.",
+  "picture": "v10.jpg",
+  "narrator": "Imagine that a technology institute is studying public opinions about advanced artificial intelligence. You have agreed to participate in a telephone interview about innovation and risk.",
+  "questions": [
+    "What benefits could highly capable AI bring to society?",
+    "If developers discover a serious safety weakness before launch, what should happen?",
+    "Who should set rules for advanced AI: companies, governments, or international bodies? Why?",
+    "Should development pause when risks are uncertain but possible benefits are large? Explain."
+  ]
+}

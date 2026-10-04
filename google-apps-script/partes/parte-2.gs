@@ -1,4 +1,4 @@
-/* ── Speaking Exam · parte 2 de 6 ── */
+/* ── Speaking Exam · parte 2 de 5 ── */
 
 const RUBRIC = [
   [
@@ -49,13 +49,7 @@ function setup() {
 }
 
 function onOpen() {
-  SpreadsheetApp.getUi()
-    .createMenu(APP)
-    .addItem('Configurar (setup)', 'setup')
-    .addItem('Guardar el código del examen', 'guardarCodigo')
-    .addItem('Abrir el examen', 'abrirExamen')
-    .addItem('Cerrar el examen', 'cerrarExamen')
-    .addToUi();
+  SpreadsheetApp.getUi().createMenu(APP).addItem('Configurar (setup)', 'setup').addToUi();
 }
 
 function doGet() {
@@ -69,7 +63,6 @@ function doPost(e) {
     if (data.type === 'start') return json_(withLock_(() => start_(data)));
     if (data.type === 'recording') return json_(recording_(data));
     if (data.type === 'finish') return json_(withLock_(() => finish_(data)));
-    if (data.type === 'key') return json_(key_());
     throw new Error('Pedido desconocido.');
   } catch (err) {
     return json_({ ok: false, error: err.message });
@@ -78,4 +71,4 @@ function doPost(e) {
 
 /* ─── requests ─── */
 
-/* ── fin de la parte 2 de 6 ── */
+/* ── fin de la parte 2 de 5 ── */

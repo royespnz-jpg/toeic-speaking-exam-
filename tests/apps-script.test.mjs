@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { readdirSync } from 'node:fs';
-import { splitCode, stripMarkers, MAX_LINES } from '../scripts/split-gs.mjs';
+import { splitCode, stripMarkers, MAX_LINES, CUT } from '../scripts/split-gs.mjs';
 
 // A small stand-in for the Google services the script uses.
 // The script as one file, or as the short parts (google-apps-script/partes/).
@@ -63,10 +63,24 @@ function makeEnv({ parts = false } = {}) {
     let i = 0;
     return { hasNext: () => i < items.length, next: () => items[i++] };
   };
+  const props = new Map();
+  const alerts = [];
+  let answer = null; // what the teacher types in the next prompt
+  const ui = {
+    ButtonSet: { OK_CANCEL: 'okc' },
+    Button: { OK: 'ok', CANCEL: 'cancel' },
+    alert: (m) => alerts.push(m),
+    prompt: () => ({ getSelectedButton: () => (answer === null ? 'cancel' : 'ok'), getResponseText: () => answer ?? '' }),
+    createMenu: () => ({ addItem() { return this; }, addToUi() {} }),
+  };
   const ctx = {
     console,
+    PropertiesService: {
+      getScriptProperties: () => ({ getProperty: (k) => props.get(k) ?? null, setProperty: (k, v) => props.set(k, v) }),
+    },
     Logger: { log: () => {} },
     SpreadsheetApp: {
+      getUi: () => ui,
       getActiveSpreadsheet: () => ({
         getName: () => 'Speaking 2026',
         getSheetByName: (n) => sheets.get(n) || null,
@@ -94,7 +108,7 @@ function makeEnv({ parts = false } = {}) {
   vm.createContext(ctx);
   for (const src of parts ? PARTS : [CODE]) vm.runInContext(src, ctx);
   const post = (payload) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(payload) } }).body);
-  return { ctx, post, sheets, files, folders };
+  return { ctx, post, sheets, files, folders, props, alerts, type: (a) => (answer = a) };
 }
 
 const who = { attempt: 'mg1abc-x7y8z9', student: 'Ana Pérez', group: '3B', speaker: 4 };
@@ -150,7 +164,7 @@ test('bad requests are refused with a message', () => {
 
 test('the short parts are up to date, complete on their own, and work like Code.gs', () => {
   assert.deepEqual(PARTS.map(stripMarkers), splitCode(CODE), 'run: node scripts/split-gs.mjs');
-  assert.equal(PARTS.map(stripMarkers).join('\n\n'), CODE.replace(/\n+$/, ''));
+  assert.equal(PARTS.map(stripMarkers).join(`\n\n${CUT}\n\n`), CODE.replace(/\n+$/, ''));
   for (const [i, part] of PARTS.entries()) {
     assert.doesNotThrow(() => new vm.Script(part), `parte ${i + 1} must be valid code on its own`);
     assert.ok(part.split('\n').length <= MAX_LINES + 10, `parte ${i + 1} is too long`);
@@ -160,4 +174,22 @@ test('the short parts are up to date, complete on their own, and work like Code.
   assert.match(ctx.setup(), /Listo/);
   assert.equal(post({ type: 'start', ...who }).ok, true);
   assert.equal(post({ type: 'recording', ...who, qid: 'q3', label: 'Question 3', mime: 'audio/webm', audio }).ok, true);
+});
+
+test('the exam key: saved by the teacher, given out only while the exam is open', () => {
+  const { ctx, post, props, alerts, type } = makeEnv({ parts: true });
+  assert.match(post({ type: 'key' }).error, /not ready yet/);
+  type('spk-abcd-efgh ');
+  ctx.guardarCodigo();
+  assert.equal(props.get('EXAM_CODE'), 'SPK-ABCD-EFGH');
+  assert.match(alerts.at(-1), /abierto/);
+  assert.deepEqual(post({ type: 'key' }), { ok: true, key: 'SPK-ABCD-EFGH' });
+  ctx.cerrarExamen();
+  assert.match(post({ type: 'key' }).error, /closed/);
+  ctx.abrirExamen();
+  assert.equal(post({ type: 'key' }).key, 'SPK-ABCD-EFGH');
+  type('no!');
+  ctx.guardarCodigo();
+  assert.equal(props.get('EXAM_CODE'), 'SPK-ABCD-EFGH', 'a wrong code is not saved');
+  ctx.onOpen();
 });

@@ -1,0 +1,15 @@
+{
+  "name": "toeic-speaking-exam",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A timed speaking exam in the TOEIC Speaking format, with automatic recording and the teacher's Google Apps Script.",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "build": "node scripts/build-exam.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

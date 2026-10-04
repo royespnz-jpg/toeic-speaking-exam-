@@ -1,0 +1,12 @@
+{
+  "n": 1,
+  "readAloud": "Artificial intelligence is becoming part of everyday schoolwork, so students need more than permission to use it. They need to understand what the technology can and cannot do. A chatbot may produce a clear answer that sounds reliable, even when the information is false or incomplete. For this reason, teachers are asking students to compare AI responses with trustworthy sources, identify possible bias, and protect personal information. Some schools also encourage students to explain when and how they used an AI tool. The goal is not simply to ban new technology. It is to help young people become careful, independent users who can question digital information and make responsible choices.",
+  "picture": "v01.jpg",
+  "narrator": "Imagine that a university research team is studying how people use artificial intelligence. You have agreed to participate in a telephone interview about AI in education.",
+  "questions": [
+    "How often do you use AI for school or work, and what do you use it for?",
+    "Imagine an AI tool gives two confident but contradictory answers. What would you do?",
+    "What practical rule should a school adopt for responsible AI use?",
+    "Should students be allowed to use AI in all assignments? Explain your position."
+  ]
+}

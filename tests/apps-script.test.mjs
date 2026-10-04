@@ -63,21 +63,10 @@ function makeEnv({ parts = false } = {}) {
     let i = 0;
     return { hasNext: () => i < items.length, next: () => items[i++] };
   };
-  const props = new Map();
-  const alerts = [];
-  let answer = null; // what the teacher types in the next prompt
-  const ui = {
-    ButtonSet: { OK_CANCEL: 'okc' },
-    Button: { OK: 'ok', CANCEL: 'cancel' },
-    alert: (m) => alerts.push(m),
-    prompt: () => ({ getSelectedButton: () => (answer === null ? 'cancel' : 'ok'), getResponseText: () => answer ?? '' }),
-    createMenu: () => ({ addItem() { return this; }, addToUi() {} }),
-  };
+  const menu = [];
+  const ui = { createMenu: () => ({ addItem(label) { menu.push(label); return this; }, addToUi() {} }) };
   const ctx = {
     console,
-    PropertiesService: {
-      getScriptProperties: () => ({ getProperty: (k) => props.get(k) ?? null, setProperty: (k, v) => props.set(k, v) }),
-    },
     Logger: { log: () => {} },
     SpreadsheetApp: {
       getUi: () => ui,
@@ -108,7 +97,7 @@ function makeEnv({ parts = false } = {}) {
   vm.createContext(ctx);
   for (const src of parts ? PARTS : [CODE]) vm.runInContext(src, ctx);
   const post = (payload) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(payload) } }).body);
-  return { ctx, post, sheets, files, folders, props, alerts, type: (a) => (answer = a) };
+  return { ctx, post, sheets, files, folders, menu };
 }
 
 const who = { attempt: 'mg1abc-x7y8z9', student: 'Ana Pérez', group: '3B', speaker: 4 };
@@ -176,20 +165,13 @@ test('the short parts are up to date, complete on their own, and work like Code.
   assert.equal(post({ type: 'recording', ...who, qid: 'q3', label: 'Question 3', mime: 'audio/webm', audio }).ok, true);
 });
 
-test('the exam key: saved by the teacher, given out only while the exam is open', () => {
-  const { ctx, post, props, alerts, type } = makeEnv({ parts: true });
-  assert.match(post({ type: 'key' }).error, /not ready yet/);
-  type('spk-abcd-efgh ');
-  ctx.guardarCodigo();
-  assert.equal(props.get('EXAM_CODE'), 'SPK-ABCD-EFGH');
-  assert.match(alerts.at(-1), /abierto/);
-  assert.deepEqual(post({ type: 'key' }), { ok: true, key: 'SPK-ABCD-EFGH' });
-  ctx.cerrarExamen();
-  assert.match(post({ type: 'key' }).error, /closed/);
-  ctx.abrirExamen();
-  assert.equal(post({ type: 'key' }).key, 'SPK-ABCD-EFGH');
-  type('no!');
-  ctx.guardarCodigo();
-  assert.equal(props.get('EXAM_CODE'), 'SPK-ABCD-EFGH', 'a wrong code is not saved');
+test('a student with only a name and a speaker (the exam asks for nothing else)', () => {
+  const { ctx, post, files, menu } = makeEnv({ parts: true });
+  const student = { attempt: 'mg2abc-k3l4m5', student: 'Luis Gómez', speaker: 11 };
+  assert.equal(post({ type: 'start', ...student }).ok, true);
+  assert.equal(post({ type: 'recording', ...student, qid: 'q1-2', label: 'Questions 1–2', mime: 'audio/webm', audio }).ok, true);
+  assert.equal(post({ type: 'finish', ...student, leftPage: 0, resumed: 0 }).ok, true);
+  assert.equal(files[0].folder, 'Speaking Exam — Recordings/No group/Luis Gómez · Speaker 11 · k3l4m5');
   ctx.onOpen();
+  assert.deepEqual(menu, ['Configurar (setup)']);
 });

@@ -1,4 +1,4 @@
-/* ── Speaking Exam · parte 4 de 6 ── */
+/* ── Speaking Exam · parte 4 de 5 ── */
 
 function finish_(d) {
   const who = person_(d);
@@ -75,4 +75,4 @@ function findResponse_(sheet, attempt, qid) {
   return '';
 }
 
-/* ── fin de la parte 4 de 6 ── */
+/* ── fin de la parte 4 de 5 ── */

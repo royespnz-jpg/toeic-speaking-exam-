@@ -16,6 +16,7 @@ const TYPES = {
   '.mp3': 'audio/mpeg',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
 };
 
 createServer(async (req, res) => {
@@ -33,4 +34,4 @@ createServer(async (req, res) => {
   } catch {
     res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found');
   }
-}).listen(PORT, () => console.log(`Connected Speech Lab → http://localhost:${PORT}`));
+}).listen(PORT, () => console.log(`Speaking Exam → http://localhost:${PORT}`));

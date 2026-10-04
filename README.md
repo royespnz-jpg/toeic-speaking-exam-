@@ -25,18 +25,14 @@ Las consignas y las preguntas se oyen (voz del navegador) y se leen en pantalla.
 - **Si se recarga la página**, el examen sigue desde la pregunta que estaba respondiendo (la planilla lo cuenta en
   *Restarts*; también cuenta cuántas veces salió de la página).
 
-## El código del examen (lo guarda tu script, no el estudiante)
+## Sin código de examen
 
-El repositorio es público (GitHub Pages), así que **el examen está cifrado** (AES-256): las 14 versiones están en
-`exam/v01.bin … v14.bin`. La clave **no está en el sitio ni en el repositorio**: la guarda tu Google Script, y la página
-se la pide sola cuando el estudiante toca *Continue*. El estudiante solo escribe su nombre y elige su speaker.
+El estudiante escribe su **nombre**, elige su **speaker** y empieza: no hay código. El profesor supervisa en la clase.
+Las 14 versiones están en `exam/v01.json … v14.json`, cada una con su imagen (`v01.jpg …`). El PowerPoint no se sube
+(`.gitignore`).
 
-- **Guardar el código (una vez):** en la planilla, menú **Speaking Exam → Guardar el código del examen** y pegá el código
-  que te di (`SPK-…`). Queda guardado en las propiedades del script y el examen queda **abierto**.
-- **Cerrar el examen** (nadie puede empezarlo) y **Abrir el examen**: en el mismo menú.
-
-Para cambiar el código o el examen: `node scripts/build-exam.mjs "Speaking Exam.pptx" NUEVO-CODIGO` (lee el PowerPoint,
-achica las imágenes y cifra cada versión) y después guardá el código nuevo en el menú.
+Para cambiar el examen: `node scripts/build-exam.mjs "Speaking Exam.pptx"`. Lee el PowerPoint (un bloque por versión:
+*Speaking N*, el texto, la imagen y las 4 preguntas), achica las imágenes y escribe los archivos de `exam/`.
 
 ## Instalación
 
@@ -44,21 +40,20 @@ achica las imágenes y cifra cada versión) y después guardá el código nuevo 
    lo que haya → pegá [`google-apps-script/Code.gs`](google-apps-script/Code.gs) → guardá → elegí **`setup`** →
    **▶ Ejecutar** → aceptá los permisos. Crea las hojas *Exams*, *Responses* y *Rubric*, y la carpeta
    *Speaking Exam — Recordings* en tu Drive.
-   > **¿El editor no te deja pegar todo el código?** Usá las 6 partes cortas de
+   > **¿El editor no te deja pegar todo el código?** Usá las 5 partes cortas de
    > [`google-apps-script/partes/`](google-apps-script/partes/): la **parte 1** va en `Código.gs` (reemplazando todo),
    > y cada una de las otras en un archivo nuevo (**＋ → Secuencia de comandos**, llamalo `parte2`, `parte3`…). Cada parte
-   > empieza con `/* ── Speaking Exam · parte N de 6 ── */` y termina con `/* ── fin de la parte N de 6 ── */`: si no
+   > empieza con `/* ── Speaking Exam · parte N de 5 ── */` y termina con `/* ── fin de la parte N de 5 ── */`: si no
    > ves esa última línea, se cortó al pegar. Después seguí igual (`setup`, implementar).
 2. **Implementar → Nueva implementación → Aplicación web** · Ejecutar como: **Yo** · Quién tiene acceso: **Cualquier
    persona** → copiá la URL que termina en `/exec`.
-3. **Recargá la planilla** → menú **Speaking Exam → Guardar el código del examen** → pegá el código.
-4. **En el examen**, abrí la página **Teacher** (`…/#teacher`): pegá la URL, *Test*, *Save*. Ahí están los links para
+3. **En el examen**, abrí la página **Teacher** (`…/#teacher`): pegá la URL, *Test*, *Save*. Ahí están los links para
    los estudiantes (uno general y uno por speaker) y un link para probar el examen con relojes cortos.
 
 > **¿Cambiaste el script?** Guardar no alcanza: la URL `/exec` sigue usando la versión anterior hasta que la publiques.
 > **Implementar → Administrar implementaciones → ✏️ (la implementación de siempre) → Versión: Nueva versión →
 > Implementar.** Así la URL no cambia. (*Nueva implementación* crea **otra** URL y la de los links sigue con el script
-> viejo.) Si el examen dice *Pedido desconocido* o *an older version*, es esto.
+> viejo.)
 
 ### Qué guarda la planilla
 

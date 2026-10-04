@@ -1,0 +1,12 @@
+{
+  "n": 11,
+  "readAloud": "Digital images can be copied, altered, and shared at great speed, often without the knowledge of the people shown. Generative AI increases this risk because it can create realistic new material from existing photographs. The consequences are especially serious when children are involved or when an image is designed to humiliate, exploit, or threaten someone. Platforms need safeguards before a tool is released, not only after harmful content appears. These protections may include strict filters, human review, rapid reporting systems, and permanent removal procedures. Companies should also preserve evidence for lawful investigations while limiting further circulation. Consent must remain central: a public photograph is not permission for every possible use. Responsible technology protects people’s dignity, responds quickly to victims, and makes safety a basic design requirement.",
+  "picture": "v11.jpg",
+  "narrator": "Imagine that a digital safety organization is studying how online platforms protect personal images. You have agreed to participate in a telephone interview about consent and safety.",
+  "questions": [
+    "Why is consent important when digital images are uploaded or edited?",
+    "If a harmful AI-generated image is reported, what should a platform do immediately?",
+    "What safeguards should AI companies use to protect minors?",
+    "Should companies be legally responsible when weak safeguards enable serious harm? Explain."
+  ]
+}

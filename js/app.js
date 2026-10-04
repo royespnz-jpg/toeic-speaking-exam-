@@ -1,4 +1,3 @@
-import { decrypt } from './crypto.js';
 import { PARTS, RESPONSES, buildTimeline, timedSeconds } from './format.js';
 import { clockHtml, runClock, idleClock, fmt } from './clock.js';
 import { unlockAudio, beep, speak, stopSpeaking, openMicrophone, closeMicrophone, levelMeter, startRecording } from './audio.js';
@@ -13,7 +12,7 @@ const SESSION = 'exam.session';
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-let S = null; // the student's exam: { student, speaker, key, attempt, version, steps, stepIndex, done, leftPage, resumed }
+let S = null; // the student's exam: { student, speaker, attempt, version, steps, stepIndex, done, leftPage, resumed }
 
 function persist() {
   if (!S) return;
@@ -51,27 +50,16 @@ async function loadManifest() {
   }
 }
 
-// The exam files are encrypted; their key is kept in the teacher's Google
-// Script, which gives it out only while the exam is open.
-async function examKey(url = scriptUrl()) {
-  if (!url) throw new Error('This exam is not connected to your teacher’s sheet. Ask your teacher for the exam link.');
-  try {
-    return (await post({ type: 'key' }, url)).key;
-  } catch (err) {
-    // A script from before the key moved there doesn't know this request.
-    if (/Pedido desconocido/.test(err.message)) throw new Error(OLD_SCRIPT);
-    throw err;
-  }
-}
-
-const OLD_SCRIPT =
-  'Your teacher’s Google Script is an older version, so it can’t open the exam yet. ' +
-  'Teacher: in Apps Script, Implementar → Administrar implementaciones → ✏️ → Versión: Nueva versión → Implementar.';
-
-async function loadVersion(n, key) {
-  const res = await fetch(`exam/v${String(n).padStart(2, '0')}.bin`, { cache: 'no-cache' });
+// A version and its picture. The picture is kept in memory, so it shows even
+// if the connection drops during the exam.
+async function loadVersion(n) {
+  const name = `exam/v${String(n).padStart(2, '0')}`;
+  const res = await fetch(`${name}.json`, { cache: 'no-cache' });
   if (!res.ok) throw new Error(`Speaking ${n} is not in this exam.`);
-  return decrypt(await res.arrayBuffer(), key);
+  const version = await res.json();
+  const pic = await fetch(`exam/${version.picture}`);
+  if (!pic.ok) throw new Error('The picture for this exam didn’t load. Check the connection and try again.');
+  return { ...version, picture: URL.createObjectURL(await pic.blob()) };
 }
 
 // ─── 1 · start ──────────────────────────────────────────────────────────────
@@ -125,12 +113,10 @@ async function submitStart(form) {
   button.textContent = 'Opening the exam…';
   err.textContent = '';
   try {
-    const key = await examKey();
-    const version = await loadVersion(Number(data.speaker), key);
+    const version = await loadVersion(Number(data.speaker));
     S = {
       student: data.student.trim(),
       speaker: Number(data.speaker),
-      key,
       attempt: newId(),
       version,
       steps: buildTimeline(version, { scale: DEMO }),
@@ -493,10 +479,9 @@ async function renderTeacher(message = '') {
       </details>
     </section>
     <section class="card">
-      <h2>3 · The exam code</h2>
-      <p>The exam files are encrypted. Your script keeps their code and gives it to the exam while it is open, so students
-        only write their name and choose their speaker. In your sheet: <b>Speaking Exam → Guardar el código del examen</b>
-        (once), and <b>Abrir el examen</b> / <b>Cerrar el examen</b> to let students in or not. <i>Test</i> above checks it.</p>
+      <h2>3 · Try it</h2>
+      <p>Students write their name, choose their speaker and start: there is no exam code. Try the whole exam with short
+        clocks; your answers go to your sheet like a student’s.</p>
       <p><a class="btn ghost" href="${esc(link('demo=1'))}">Try the exam with short clocks</a></p>
     </section>
   </main>`;
@@ -541,21 +526,11 @@ document.addEventListener('click', async (e) => {
     const status = app.querySelector('[data-teacher-status]');
     const url = app.querySelector('[name="url"]').value.trim();
     status.textContent = 'Testing…';
-    let info;
     try {
-      info = await ping(url);
+      const info = await ping(url);
+      status.textContent = `✓ Connected to “${info.sheet}”. Press Save.`;
     } catch (err) {
       status.textContent = `Couldn’t connect: ${err.message}`;
-      return;
-    }
-    try {
-      await examKey(url);
-      status.textContent = `✓ Connected to “${info.sheet}”, and the exam is open. Press Save.`;
-    } catch (err) {
-      const why = err.message === OLD_SCRIPT
-        ? 'this URL still runs the old script. In Apps Script: Implementar → Administrar implementaciones → ✏️ → Versión: Nueva versión → Implementar.'
-        : err.message;
-      status.textContent = `Connected to “${info.sheet}”, but students can’t start yet: ${why}`;
     }
   }
 });
@@ -581,9 +556,9 @@ async function start() {
   resumeUploads();
   if (location.hash === '#teacher') return renderTeacher();
   const saved = savedSession();
-  if (saved && !saved.finished && saved.key) {
+  if (saved && !saved.finished) {
     try {
-      const version = await loadVersion(saved.speaker, saved.key);
+      const version = await loadVersion(saved.speaker);
       S = { ...saved, version, steps: buildTimeline(version, { scale: DEMO }) };
       S.stepIndex = resumeIndex(S.steps, S.done);
       S.resumed = (S.resumed || 0) + 1;
@@ -595,7 +570,7 @@ async function start() {
   }
   if (saved?.finished) {
     try {
-      const version = await loadVersion(saved.speaker, saved.key);
+      const version = await loadVersion(saved.speaker);
       S = { ...saved, version, steps: buildTimeline(version, { scale: DEMO }) };
       return renderDone();
     } catch {

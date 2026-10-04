@@ -199,11 +199,6 @@ select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
 }
-input[name='code'] {
-  font-family: var(--f-mono);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
 .status {
   margin: 10px 0 0;
   font-size: 0.95rem;

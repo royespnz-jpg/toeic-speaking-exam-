@@ -1,16 +1,15 @@
 // Builds the exam from the teacher's PowerPoint:
 //
-//   node scripts/build-exam.mjs "Speaking Exam.pptx" EXAM-CODE
+//   node scripts/build-exam.mjs "Speaking Exam.pptx"
 //
 // The deck has one block per version: a "Speaking N" title slide, then
 //   Questions 1–2: Read a text aloud   (the text)
 //   Question 3: Describe a picture     (the picture)
 //   Questions 4–7: Respond to questions (the narrator's context and 4 questions)
 //
-// Each version is encrypted with the exam code (AES-256-GCM, key from
-// PBKDF2-SHA-256) into exam/vNN.bin, so the public repository never holds the
-// exam in readable form: students need the code, which the teacher gives out
-// when the exam starts. The .pptx itself must never be committed.
+// Each version goes to exam/vNN.json, with its picture in exam/vNN.jpg. The
+// teacher supervises the exam in class, so the files are not locked with a
+// code. The .pptx itself is not committed.
 //
 // Pictures are made smaller (JPEG, 1280 px wide) with sharp or Python's Pillow
 // when one of them is installed; otherwise they are kept as they are.
@@ -18,8 +17,6 @@
 import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import { inflateRawSync } from 'node:zlib';
 import { execFileSync } from 'node:child_process';
-import { webcrypto as crypto } from 'node:crypto';
-import { MAGIC, ITERATIONS, normalizeCode } from '../js/crypto.js';
 
 // ─── a minimal .zip reader ──────────────────────────────────────────────────
 
@@ -113,7 +110,7 @@ export function parseExam(slides) {
   return versions;
 }
 
-// ─── pictures and encryption ────────────────────────────────────────────────
+// ─── pictures ───────────────────────────────────────────────────────────────
 
 async function smallerPicture(buf, name) {
   try {
@@ -132,44 +129,30 @@ async function smallerPicture(buf, name) {
   return { mime: /\.png$/i.test(name) ? 'image/png' : 'image/jpeg', data: buf };
 }
 
-export async function encrypt(json, code, iterations = ITERATIONS) {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(normalizeCode(code)), 'PBKDF2', false, ['deriveKey']);
-  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt']);
-  const data = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(json))));
-  return Buffer.concat([Buffer.from(MAGIC), salt, iv, data]);
-}
-
 // ─── main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  const [deck, code] = process.argv.slice(2);
-  if (!deck || !code || code.trim().length < 8) {
-    console.error('Use: node scripts/build-exam.mjs exam.pptx EXAM-CODE   (a code of 8 or more characters)');
+  const [deck] = process.argv.slice(2);
+  if (!deck) {
+    console.error('Use: node scripts/build-exam.mjs exam.pptx');
     process.exit(1);
   }
   const zip = readZip(readFileSync(deck));
   const versions = parseExam(slidesInOrder(zip));
   const out = new URL('../exam/', import.meta.url);
   mkdirSync(out, { recursive: true });
-  for (const f of readdirSync(out)) if (/^v\d+\.bin$/.test(f)) rmSync(new URL(f, out));
+  for (const f of readdirSync(out)) if (/^v\d+\.(bin|json|jpg|png)$/.test(f)) rmSync(new URL(f, out));
   for (const v of versions) {
+    const name = `v${String(v.n).padStart(2, '0')}`;
     const pic = await smallerPicture(zip.get(v.pictureFile)(), v.pictureFile);
-    const payload = {
-      n: v.n,
-      readAloud: v.readAloud,
-      picture: `data:${pic.mime};base64,${pic.data.toString('base64')}`,
-      narrator: v.narrator,
-      questions: v.questions,
-    };
-    const file = `v${String(v.n).padStart(2, '0')}.bin`;
-    const bin = await encrypt(payload, code);
-    writeFileSync(new URL(file, out), bin);
-    console.log(`Speaking ${v.n}: ${file} (${Math.round(bin.length / 1024)} KB, ${v.questions.length} questions)`);
+    const picture = `${name}.${pic.mime === 'image/png' ? 'png' : 'jpg'}`;
+    writeFileSync(new URL(picture, out), pic.data);
+    const version = { n: v.n, readAloud: v.readAloud, picture, narrator: v.narrator, questions: v.questions };
+    writeFileSync(new URL(`${name}.json`, out), `${JSON.stringify(version, null, 2)}\n`);
+    console.log(`Speaking ${v.n}: ${name}.json + ${picture} (${Math.round(pic.data.length / 1024)} KB, ${v.questions.length} questions)`);
   }
-  writeFileSync(new URL('manifest.json', out), `${JSON.stringify({ versions: versions.map((v) => v.n), iterations: ITERATIONS, built: new Date().toISOString().slice(0, 10) }, null, 2)}\n`);
-  console.log(`${versions.length} versions encrypted. Give students the code when the exam starts.`);
+  writeFileSync(new URL('manifest.json', out), `${JSON.stringify({ versions: versions.map((v) => v.n), built: new Date().toISOString().slice(0, 10) }, null, 2)}\n`);
+  console.log(`${versions.length} versions written to exam/.`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();

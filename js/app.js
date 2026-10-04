@@ -53,16 +53,37 @@ async function loadManifest() {
   }
 }
 
-// A version and its picture. The picture is kept in memory, so it shows even
-// if the connection drops during the exam.
 async function loadVersion(n) {
-  const name = `exam/v${String(n).padStart(2, '0')}`;
-  const res = await fetch(`${name}.json`, { cache: 'no-cache' });
+  const res = await fetch(`exam/v${String(n).padStart(2, '0')}.json`, { cache: 'no-cache' });
   if (!res.ok) throw new Error(`Speaking ${n} is not in this exam.`);
   const version = await res.json();
-  const pic = await fetch(`exam/${version.picture}`);
-  if (!pic.ok) throw new Error('The picture for this exam didn’t load. Check the connection and try again.');
-  return { ...version, picture: URL.createObjectURL(await pic.blob()) };
+  return { ...version, picture: await loadPicture(`exam/${version.picture}`) };
+}
+
+// The picture for Question 3 is loaded and decoded before the exam starts, and
+// kept in memory, so it shows even if the connection drops later.
+async function loadPicture(url) {
+  const decodes = async (src) => {
+    const img = new Image();
+    img.src = src;
+    try {
+      await img.decode();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const inMemory = URL.createObjectURL(await res.blob());
+      if (await decodes(inMemory)) return inMemory;
+    }
+  } catch {
+    /* try the address itself */
+  }
+  if (await decodes(url)) return url;
+  throw new Error('The picture for Question 3 didn’t load. Check the connection and try again.');
 }
 
 // ─── 1 · start ──────────────────────────────────────────────────────────────
@@ -287,9 +308,11 @@ function taskHtml(step) {
   const p = PARTS[step.part];
   const head = `<p class="task-label">${esc(step.question ? `Question ${step.question}` : p.label)}</p><h2>${esc(p.title)}</h2>`;
   const directions = `<p class="directions"><b>Directions:</b> ${esc(p.directions)}</p>`;
-  if (step.type === 'part') return head + directions;
+  const picture = `<figure class="picture"><img src="${v.picture}" alt="The picture to describe"></figure>`;
+  // The picture is on screen from the directions of Question 3 to the end of the answer.
+  if (step.type === 'part') return head + directions + (step.part === 'picture' ? picture : '');
   if (step.part === 'read') return `${head}<div class="reading">${esc(v.readAloud).replace(/\n/g, '<br>')}</div>`;
-  if (step.part === 'picture') return `${head}<figure class="picture"><img src="${v.picture}" alt="The picture to describe"></figure>`;
+  if (step.part === 'picture') return head + picture;
   // Questions 4–7: the narrator's context, then each question.
   const narrator = `<p class="narrator"><span>Narrator</span>${esc(v.narrator)}</p>`;
   if (step.narrator) return head + narrator;
@@ -322,6 +345,8 @@ async function runExam() {
     if (task.dataset.html !== html) {
       task.innerHTML = html;
       task.dataset.html = html;
+      // New content starts at the top (on a phone, the page may be scrolled down from the text).
+      window.scrollTo({ top: 0 });
     }
     const current = step.id || (step.question ? `q${step.question}` : RESPONSES.find((r) => r.part === step.part)?.id);
     app.querySelectorAll('.progress li').forEach((li) => li.classList.toggle('now', li.dataset.q === current));

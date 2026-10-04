@@ -13,30 +13,17 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'google-apps-script', 'Code.gs');
 const OUT = join(ROOT, 'google-apps-script', 'partes');
-export const MAX_LINES = 75;
+export const MAX_LINES = 80;
+export const CUT = '/* ✂ */';
 
-// A part may start where a top-level declaration or comment follows a blank
-// line, so every part is complete code on its own.
-export function splitCode(code, maxLines = MAX_LINES) {
-  const lines = code.replace(/\n+$/, '').split('\n');
-  const isBoundary = (i) => i > 0 && lines[i - 1] === '' && /^(function |const |\/\*)/.test(lines[i]);
-  const parts = [];
-  let start = 0;
-  let lastBoundary = 0;
-  for (let i = 1; i < lines.length; i++) {
-    if (!isBoundary(i)) continue;
-    if (i - start > maxLines && lastBoundary > start) {
-      parts.push(lines.slice(start, lastBoundary).join('\n'));
-      start = lastBoundary;
-    }
-    lastBoundary = i;
-  }
-  if (lines.length - start > maxLines && lastBoundary > start) {
-    parts.push(lines.slice(start, lastBoundary).join('\n'));
-    start = lastBoundary;
-  }
-  parts.push(lines.slice(start).join('\n'));
-  return parts.map((p) => p.replace(/\n+$/, ''));
+// Code.gs marks where each part starts with a line "/* ✂ */", so the parts
+// stay the same when code is added elsewhere (only the changed part has to be
+// pasted again). Every part is complete code on its own.
+export function splitCode(code) {
+  return code
+    .replace(/\n+$/, '')
+    .split(`\n${CUT}\n`)
+    .map((p) => p.replace(/^\n+|\n+$/g, ''));
 }
 
 // The first and last lines let you check that nothing was cut off when pasting.

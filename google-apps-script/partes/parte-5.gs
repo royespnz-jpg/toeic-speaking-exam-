@@ -1,4 +1,4 @@
-/* ── Speaking Exam · parte 5 de 5 ── */
+/* ── Speaking Exam · parte 5 de 6 ── */
 
 function countResponses_(sheet, attempt) {
   const last = sheet.getLastRow();
@@ -51,6 +51,5 @@ function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
-/* ── fin del archivo ── */
 
-/* ── fin de la parte 5 de 5 ── */
+/* ── fin de la parte 5 de 6 ── */

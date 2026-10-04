@@ -1,8 +1,8 @@
-import { decrypt, normalizeCode } from './crypto.js';
+import { decrypt } from './crypto.js';
 import { PARTS, RESPONSES, buildTimeline, timedSeconds } from './format.js';
 import { clockHtml, runClock, idleClock, fmt } from './clock.js';
 import { unlockAudio, beep, speak, stopSpeaking, openMicrophone, closeMicrophone, levelMeter, startRecording } from './audio.js';
-import { scriptUrl, saveScriptUrl, isScriptUrl, ping, report, enqueue, onUpload, pendingUploads, resumeUploads } from './api.js';
+import { scriptUrl, saveScriptUrl, isScriptUrl, ping, post, report, enqueue, onUpload, pendingUploads, resumeUploads } from './api.js';
 import { saveRecording, allRecordings } from './store.js';
 
 const app = document.getElementById('app');
@@ -13,7 +13,7 @@ const SESSION = 'exam.session';
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-let S = null; // the student's exam: { student, group, speaker, code, attempt, version, steps, stepIndex, done, leftPage, resumed }
+let S = null; // the student's exam: { student, speaker, key, attempt, version, steps, stepIndex, done, leftPage, resumed }
 
 function persist() {
   if (!S) return;
@@ -51,10 +51,17 @@ async function loadManifest() {
   }
 }
 
-async function loadVersion(n, code) {
+// The exam files are encrypted; their key is kept in the teacher's Google
+// Script, which gives it out only while the exam is open.
+async function examKey() {
+  if (!scriptUrl()) throw new Error('This exam is not connected to your teacher’s sheet. Ask your teacher for the exam link.');
+  return (await post({ type: 'key' })).key;
+}
+
+async function loadVersion(n, key) {
   const res = await fetch(`exam/v${String(n).padStart(2, '0')}.bin`, { cache: 'no-cache' });
   if (!res.ok) throw new Error(`Speaking ${n} is not in this exam.`);
-  return decrypt(await res.arrayBuffer(), code);
+  return decrypt(await res.arrayBuffer(), key);
 }
 
 // ─── 1 · start ──────────────────────────────────────────────────────────────
@@ -82,19 +89,15 @@ async function renderStart(error = '') {
     <form class="card start-form" data-start novalidate>
       <h2>Your details</h2>
       <label>Full name<input name="student" required maxlength="80" autocomplete="name" value="${esc(saved.student || '')}"></label>
-      <label>Class / group<input name="group" maxlength="40" value="${esc(saved.group || params.get('g') || '')}"></label>
-      <div class="row2">
-        <label>Speaker number
-          <select name="speaker" required>
-            <option value="">Choose…</option>
-            ${versions.map((n) => `<option value="${n}"${Number(pre) === n ? ' selected' : ''}>Speaker ${n}</option>`).join('')}
-          </select>
-        </label>
-        <label>Exam code<input name="code" required autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Given by your teacher"></label>
-      </div>
+      <label>Speaker
+        <select name="speaker" required>
+          <option value="">Choose your speaker…</option>
+          ${versions.map((n) => `<option value="${n}"${Number(pre) === n ? ' selected' : ''}>Speaker ${n}</option>`).join('')}
+        </select>
+      </label>
       <p class="form-error" data-error role="alert">${esc(error)}</p>
       <button class="btn primary big" type="submit">Continue</button>
-      <p class="muted small">${scriptUrl() ? 'Your answers go to your teacher’s Google Drive.' : 'No teacher’s sheet is connected: your answers stay on this device and you can download them at the end.'}
+      <p class="muted small">${scriptUrl() ? 'Your answers go to your teacher’s Google Drive.' : 'This exam is not connected to your teacher’s sheet yet.'}
         · <a href="#teacher">Teacher</a></p>
     </form>
   </main>`;
@@ -104,20 +107,20 @@ async function submitStart(form) {
   const data = Object.fromEntries(new FormData(form));
   const err = form.querySelector('[data-error]');
   const button = form.querySelector('button');
-  if (!data.student.trim() || !data.speaker || !data.code.trim()) {
-    err.textContent = 'Write your name, choose your speaker number and type the exam code.';
+  if (!data.student.trim() || !data.speaker) {
+    err.textContent = 'Write your name and choose your speaker.';
     return;
   }
   button.disabled = true;
   button.textContent = 'Opening the exam…';
   err.textContent = '';
   try {
-    const version = await loadVersion(Number(data.speaker), normalizeCode(data.code));
+    const key = await examKey();
+    const version = await loadVersion(Number(data.speaker), key);
     S = {
       student: data.student.trim(),
-      group: data.group.trim(),
       speaker: Number(data.speaker),
-      code: normalizeCode(data.code),
+      key,
       attempt: newId(),
       version,
       steps: buildTimeline(version, { scale: DEMO }),
@@ -309,7 +312,7 @@ async function runExam() {
   keepAwake();
   const clock = app.querySelector('.clock');
   const recEl = app.querySelector('[data-rec]');
-  if (S.stepIndex === 0) report({ type: 'start', attempt: S.attempt, student: S.student, group: S.group, speaker: S.speaker, demo: DEMO < 1, startedAt: new Date().toISOString(), userAgent: navigator.userAgent });
+  if (S.stepIndex === 0) report({ type: 'start', attempt: S.attempt, student: S.student, speaker: S.speaker, demo: DEMO < 1, startedAt: new Date().toISOString(), userAgent: navigator.userAgent });
 
   for (let i = S.stepIndex; i < S.steps.length; i++) {
     S.stepIndex = i;
@@ -355,7 +358,6 @@ async function runExam() {
         key: `${S.attempt}:${step.id}`,
         attempt: S.attempt,
         student: S.student,
-        group: S.group,
         speaker: S.speaker,
         qid: step.id,
         label: meta.label,
@@ -380,7 +382,7 @@ async function runExam() {
   closeMicrophone();
   stopSpeaking();
   wakeLock?.release?.().catch(() => {});
-  report({ type: 'finish', attempt: S.attempt, student: S.student, group: S.group, speaker: S.speaker, responses: S.done.length, leftPage: S.leftPage, resumed: S.resumed, finishedAt: new Date().toISOString() });
+  report({ type: 'finish', attempt: S.attempt, student: S.student, speaker: S.speaker, responses: S.done.length, leftPage: S.leftPage, resumed: S.resumed, finishedAt: new Date().toISOString() });
   renderDone();
 }
 
@@ -558,9 +560,9 @@ async function start() {
   resumeUploads();
   if (location.hash === '#teacher') return renderTeacher();
   const saved = savedSession();
-  if (saved && !saved.finished && saved.code) {
+  if (saved && !saved.finished && saved.key) {
     try {
-      const version = await loadVersion(saved.speaker, saved.code);
+      const version = await loadVersion(saved.speaker, saved.key);
       S = { ...saved, version, steps: buildTimeline(version, { scale: DEMO }) };
       S.stepIndex = resumeIndex(S.steps, S.done);
       S.resumed = (S.resumed || 0) + 1;
@@ -572,7 +574,7 @@ async function start() {
   }
   if (saved?.finished) {
     try {
-      const version = await loadVersion(saved.speaker, saved.code);
+      const version = await loadVersion(saved.speaker, saved.key);
       S = { ...saved, version, steps: buildTimeline(version, { scale: DEMO }) };
       return renderDone();
     } catch {

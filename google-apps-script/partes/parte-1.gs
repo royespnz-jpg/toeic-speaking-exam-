@@ -1,4 +1,4 @@
-/* ── Speaking Exam · parte 1 de 5 ── */
+/* ── Speaking Exam · parte 1 de 6 ── */
 
 /*
  * ── Speaking Exam · Google Apps Script ──
@@ -49,4 +49,4 @@ const SHEETS = {
 const EX = { attempt: 12, status: 5, answers: 6, finished: 7, left: 8, restarts: 9, total: 10, folder: 11 };
 const RE = { attempt: 11 };
 
-/* ── fin de la parte 1 de 5 ── */
+/* ── fin de la parte 1 de 6 ── */

@@ -47,6 +47,8 @@ const SHEETS = {
 const EX = { attempt: 12, status: 5, answers: 6, finished: 7, left: 8, restarts: 9, total: 10, folder: 11 };
 const RE = { attempt: 11 };
 
+/* ✂ */
+
 const RUBRIC = [
   [
     '3',
@@ -96,7 +98,13 @@ function setup() {
 }
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu(APP).addItem('Configurar (setup)', 'setup').addToUi();
+  SpreadsheetApp.getUi()
+    .createMenu(APP)
+    .addItem('Configurar (setup)', 'setup')
+    .addItem('Guardar el código del examen', 'guardarCodigo')
+    .addItem('Abrir el examen', 'abrirExamen')
+    .addItem('Cerrar el examen', 'cerrarExamen')
+    .addToUi();
 }
 
 function doGet() {
@@ -110,6 +118,7 @@ function doPost(e) {
     if (data.type === 'start') return json_(withLock_(() => start_(data)));
     if (data.type === 'recording') return json_(recording_(data));
     if (data.type === 'finish') return json_(withLock_(() => finish_(data)));
+    if (data.type === 'key') return json_(key_());
     throw new Error('Pedido desconocido.');
   } catch (err) {
     return json_({ ok: false, error: err.message });
@@ -117,6 +126,8 @@ function doPost(e) {
 }
 
 /* ─── requests ─── */
+
+/* ✂ */
 
 function start_(d) {
   const who = person_(d);
@@ -191,6 +202,8 @@ function recording_(d) {
   });
   return { ok: true, url: url, id: file.getId() };
 }
+
+/* ✂ */
 
 function finish_(d) {
   const who = person_(d);
@@ -267,6 +280,8 @@ function findResponse_(sheet, attempt, qid) {
   return '';
 }
 
+/* ✂ */
+
 function countResponses_(sheet, attempt) {
   const last = sheet.getLastRow();
   if (last < 2) return 0;
@@ -317,5 +332,52 @@ function date_(iso) {
 function json_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/* ✂ */
+
+/* ─── the exam key ─── */
+
+/*
+ * The exam files on the website are encrypted. Their key lives only here, in
+ * this script's properties, never on the website: the page asks for it when a
+ * student starts, and gets it only while the exam is open.
+ */
+function key_() {
+  const props = PropertiesService.getScriptProperties();
+  const key = props.getProperty('EXAM_CODE');
+  if (!key) {
+    throw new Error('The exam is not ready yet: your teacher has to save its code.');
+  }
+  if (props.getProperty('EXAM_OPEN') === 'no') {
+    throw new Error('The exam is closed. Wait for your teacher to open it.');
+  }
+  return { ok: true, key: key };
+}
+
+/* Menu Speaking Exam → Guardar el código del examen (once). */
+function guardarCodigo() {
+  const ui = SpreadsheetApp.getUi();
+  const res = ui.prompt('Código del examen', 'Pegá el código del examen (SPK-…):', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+  const code = res.getResponseText().trim().toUpperCase();
+  if (!/^[A-Z0-9-]{8,40}$/.test(code)) {
+    ui.alert('Ese código no parece correcto. Copialo tal cual (SPK-…).');
+    return;
+  }
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty('EXAM_CODE', code);
+  props.setProperty('EXAM_OPEN', 'yes');
+  ui.alert('Listo: el examen está abierto. Los estudiantes solo escriben su nombre y eligen su speaker.');
+}
+
+function abrirExamen() {
+  PropertiesService.getScriptProperties().setProperty('EXAM_OPEN', 'yes');
+  SpreadsheetApp.getUi().alert('El examen está abierto.');
+}
+
+function cerrarExamen() {
+  PropertiesService.getScriptProperties().setProperty('EXAM_OPEN', 'no');
+  SpreadsheetApp.getUi().alert('El examen está cerrado: nadie puede empezarlo hasta que lo abras.');
 }
 /* ── fin del archivo ── */

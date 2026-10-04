@@ -1,0 +1,6 @@
+# The exam source must never be published: only the encrypted files in exam/.
+*.pptx
+*.ppt
+exam-source/
+node_modules/
+.DS_Store

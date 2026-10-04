@@ -2,9 +2,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import { readdirSync } from 'node:fs';
+import { splitCode, stripMarkers, MAX_LINES } from '../scripts/split-gs.mjs';
 
 // A small stand-in for the Google services the script uses.
-function makeEnv() {
+// The script as one file, or as the short parts (google-apps-script/partes/).
+const CODE = readFileSync(new URL('../google-apps-script/Code.gs', import.meta.url), 'utf8');
+const PART_DIR = new URL('../google-apps-script/partes/', import.meta.url);
+const PARTS = readdirSync(PART_DIR)
+  .filter((f) => f.endsWith('.gs'))
+  .sort((a, b) => parseInt(a.match(/\d+/)) - parseInt(b.match(/\d+/)))
+  .map((f) => readFileSync(new URL(f, PART_DIR), 'utf8'));
+
+function makeEnv({ parts = false } = {}) {
   const sheets = new Map();
   const makeSheet = (name) => {
     const data = [];
@@ -82,7 +92,7 @@ function makeEnv() {
     },
   };
   vm.createContext(ctx);
-  vm.runInContext(readFileSync(new URL('../google-apps-script/Code.gs', import.meta.url), 'utf8'), ctx);
+  for (const src of parts ? PARTS : [CODE]) vm.runInContext(src, ctx);
   const post = (payload) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(payload) } }).body);
   return { ctx, post, sheets, files, folders };
 }
@@ -136,4 +146,18 @@ test('bad requests are refused with a message', () => {
   const { post: post2, sheets } = makeEnv();
   post2({ type: 'start', ...who, student: '=IMPORTXML("x")' });
   assert.equal(sheets.get('Exams').data[1][1], '\'=IMPORTXML("x")');
+});
+
+test('the short parts are up to date, complete on their own, and work like Code.gs', () => {
+  assert.deepEqual(PARTS.map(stripMarkers), splitCode(CODE), 'run: node scripts/split-gs.mjs');
+  assert.equal(PARTS.map(stripMarkers).join('\n\n'), CODE.replace(/\n+$/, ''));
+  for (const [i, part] of PARTS.entries()) {
+    assert.doesNotThrow(() => new vm.Script(part), `parte ${i + 1} must be valid code on its own`);
+    assert.ok(part.split('\n').length <= MAX_LINES + 10, `parte ${i + 1} is too long`);
+    assert.match(part, new RegExp(`fin de la parte ${i + 1} de ${PARTS.length}`));
+  }
+  const { post, ctx } = makeEnv({ parts: true });
+  assert.match(ctx.setup(), /Listo/);
+  assert.equal(post({ type: 'start', ...who }).ok, true);
+  assert.equal(post({ type: 'recording', ...who, qid: 'q3', label: 'Question 3', mime: 'audio/webm', audio }).ok, true);
 });

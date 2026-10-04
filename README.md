@@ -46,6 +46,11 @@ Lee el PowerPoint (un bloque por versión: *Speaking N*, el texto, la imagen y l
    lo que haya → pegá [`google-apps-script/Code.gs`](google-apps-script/Code.gs) → guardá → elegí **`setup`** →
    **▶ Ejecutar** → aceptá los permisos. Crea las hojas *Exams*, *Responses* y *Rubric*, y la carpeta
    *Speaking Exam — Recordings* en tu Drive.
+   > **¿El editor no te deja pegar todo el código?** Usá las 5 partes cortas de
+   > [`google-apps-script/partes/`](google-apps-script/partes/): la **parte 1** va en `Código.gs` (reemplazando todo),
+   > y cada una de las otras en un archivo nuevo (**＋ → Secuencia de comandos**, llamalo `parte2`, `parte3`…). Cada parte
+   > empieza con `/* ── Speaking Exam · parte N de 5 ── */` y termina con `/* ── fin de la parte N de 5 ── */`: si no
+   > ves esa última línea, se cortó al pegar. Después seguí igual (`setup`, implementar).
 2. **Implementar → Nueva implementación → Aplicación web** · Ejecutar como: **Yo** · Quién tiene acceso: **Cualquier
    persona** → copiá la URL que termina en `/exec`.
 3. **En el examen**, abrí la página **Teacher** (`…/#teacher`): pegá la URL, *Test*, *Save*. Ahí están los links para

@@ -48,7 +48,7 @@ Para cambiar el examen: `node scripts/build-exam.mjs "Speaking Exam.pptx"`. Lee 
 2. **Implementar → Nueva implementación → Aplicación web** · Ejecutar como: **Yo** · Quién tiene acceso: **Cualquier
    persona** → copiá la URL que termina en `/exec`.
 3. **En el examen**, abrí la página **Teacher** (`…/#teacher`): pegá la URL, *Test*, *Save*. Ahí están los links para
-   los estudiantes (uno general y uno por speaker) y un link para probar el examen con relojes cortos.
+   los estudiantes (uno general y uno por speaker) y un link para probar el examen completo (queda marcado *demo* en la planilla).
 
 > **¿Cambiaste el script?** Guardar no alcanza: la URL `/exec` sigue usando la versión anterior hasta que la publiques.
 > **Implementar → Administrar implementaciones → ✏️ (la implementación de siempre) → Versión: Nueva versión →
@@ -68,7 +68,7 @@ Los audios quedan en *Speaking Exam — Recordings / No group / nombre · Speake
 ## Probarlo
 
 ```bash
-npm start     # http://localhost:8080 ( …/?demo=1 acorta los relojes al 10 %)
+npm start     # http://localhost:8080 ( …/?demo=1 prueba con los relojes reales; …/?quick=1 los acorta al 10 %)
 npm test
 ```
 

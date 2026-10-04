@@ -6,7 +6,10 @@ import { saveRecording, allRecordings } from './store.js';
 
 const app = document.getElementById('app');
 const params = new URLSearchParams(location.search);
-const DEMO = params.has('demo') ? 0.1 : 1;
+// ?demo=1: the teacher's try-out, with the real clocks; the sheet marks it "demo".
+const DEMO = params.has('demo');
+// ?quick=1 shortens every clock to 10 % (for testing the page only).
+const SCALE = params.has('quick') ? 0.1 : 1;
 const SESSION = 'exam.session';
 
 const esc = (s) =>
@@ -50,16 +53,37 @@ async function loadManifest() {
   }
 }
 
-// A version and its picture. The picture is kept in memory, so it shows even
-// if the connection drops during the exam.
 async function loadVersion(n) {
-  const name = `exam/v${String(n).padStart(2, '0')}`;
-  const res = await fetch(`${name}.json`, { cache: 'no-cache' });
+  const res = await fetch(`exam/v${String(n).padStart(2, '0')}.json`, { cache: 'no-cache' });
   if (!res.ok) throw new Error(`Speaking ${n} is not in this exam.`);
   const version = await res.json();
-  const pic = await fetch(`exam/${version.picture}`);
-  if (!pic.ok) throw new Error('The picture for this exam didn’t load. Check the connection and try again.');
-  return { ...version, picture: URL.createObjectURL(await pic.blob()) };
+  return { ...version, picture: await loadPicture(`exam/${version.picture}`) };
+}
+
+// The picture for Question 3 is loaded and decoded before the exam starts, and
+// kept in memory, so it shows even if the connection drops later.
+async function loadPicture(url) {
+  const decodes = async (src) => {
+    const img = new Image();
+    img.src = src;
+    try {
+      await img.decode();
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const inMemory = URL.createObjectURL(await res.blob());
+      if (await decodes(inMemory)) return inMemory;
+    }
+  } catch {
+    /* try the address itself */
+  }
+  if (await decodes(url)) return url;
+  throw new Error('The picture for Question 3 didn’t load. Check the connection and try again.');
 }
 
 // ─── 1 · start ──────────────────────────────────────────────────────────────
@@ -70,7 +94,7 @@ async function renderStart(error = '') {
   const pre = Number(params.get('v')) || saved.speaker || '';
   app.innerHTML = `<main class="screen start">
     <section class="start-hero">
-      <p class="eyebrow">Speaking Exam${DEMO < 1 ? ' · <b>demo: short clocks</b>' : ''}</p>
+      <p class="eyebrow">Speaking Exam${DEMO ? ' · <b>demo</b>' : ''}</p>
       <h1>Speak when the clock says so.</h1>
       <p class="lede">Seven questions in three parts, in the TOEIC® Speaking format. A clock counts down the time to
         prepare; when it reaches zero you hear a beep, your microphone turns on, and it records until the time is up.</p>
@@ -119,7 +143,7 @@ async function submitStart(form) {
       speaker: Number(data.speaker),
       attempt: newId(),
       version,
-      steps: buildTimeline(version, { scale: DEMO }),
+      steps: buildTimeline(version, { scale: SCALE }),
       stepIndex: 0,
       done: [],
       leftPage: 0,
@@ -284,9 +308,11 @@ function taskHtml(step) {
   const p = PARTS[step.part];
   const head = `<p class="task-label">${esc(step.question ? `Question ${step.question}` : p.label)}</p><h2>${esc(p.title)}</h2>`;
   const directions = `<p class="directions"><b>Directions:</b> ${esc(p.directions)}</p>`;
-  if (step.type === 'part') return head + directions;
+  const picture = `<figure class="picture"><img src="${v.picture}" alt="The picture to describe"></figure>`;
+  // The picture is on screen from the directions of Question 3 to the end of the answer.
+  if (step.type === 'part') return head + directions + (step.part === 'picture' ? picture : '');
   if (step.part === 'read') return `${head}<div class="reading">${esc(v.readAloud).replace(/\n/g, '<br>')}</div>`;
-  if (step.part === 'picture') return `${head}<figure class="picture"><img src="${v.picture}" alt="The picture to describe"></figure>`;
+  if (step.part === 'picture') return head + picture;
   // Questions 4–7: the narrator's context, then each question.
   const narrator = `<p class="narrator"><span>Narrator</span>${esc(v.narrator)}</p>`;
   if (step.narrator) return head + narrator;
@@ -308,7 +334,7 @@ async function runExam() {
   keepAwake();
   const clock = app.querySelector('.clock');
   const recEl = app.querySelector('[data-rec]');
-  if (S.stepIndex === 0) report({ type: 'start', attempt: S.attempt, student: S.student, speaker: S.speaker, demo: DEMO < 1, startedAt: new Date().toISOString(), userAgent: navigator.userAgent });
+  if (S.stepIndex === 0) report({ type: 'start', attempt: S.attempt, student: S.student, speaker: S.speaker, demo: DEMO || SCALE < 1, startedAt: new Date().toISOString(), userAgent: navigator.userAgent });
 
   for (let i = S.stepIndex; i < S.steps.length; i++) {
     S.stepIndex = i;
@@ -319,6 +345,8 @@ async function runExam() {
     if (task.dataset.html !== html) {
       task.innerHTML = html;
       task.dataset.html = html;
+      // New content starts at the top (on a phone, the page may be scrolled down from the text).
+      window.scrollTo({ top: 0 });
     }
     const current = step.id || (step.question ? `q${step.question}` : RESPONSES.find((r) => r.part === step.part)?.id);
     app.querySelectorAll('.progress li').forEach((li) => li.classList.toggle('now', li.dataset.q === current));
@@ -480,9 +508,9 @@ async function renderTeacher(message = '') {
     </section>
     <section class="card">
       <h2>3 · Try it</h2>
-      <p>Students write their name, choose their speaker and start: there is no exam code. Try the whole exam with short
-        clocks; your answers go to your sheet like a student’s.</p>
-      <p><a class="btn ghost" href="${esc(link('demo=1'))}">Try the exam with short clocks</a></p>
+      <p>Students write their name, choose their speaker and start: there is no exam code. Try the whole exam with its real
+        clocks (about 9 minutes); your answers go to your sheet like a student’s, marked <i>demo</i>.</p>
+      <p><a class="btn ghost" href="${esc(link('demo=1'))}">Try the exam</a></p>
     </section>
   </main>`;
 }
@@ -559,7 +587,7 @@ async function start() {
   if (saved && !saved.finished) {
     try {
       const version = await loadVersion(saved.speaker);
-      S = { ...saved, version, steps: buildTimeline(version, { scale: DEMO }) };
+      S = { ...saved, version, steps: buildTimeline(version, { scale: SCALE }) };
       S.stepIndex = resumeIndex(S.steps, S.done);
       S.resumed = (S.resumed || 0) + 1;
       persist();
@@ -571,7 +599,7 @@ async function start() {
   if (saved?.finished) {
     try {
       const version = await loadVersion(saved.speaker);
-      S = { ...saved, version, steps: buildTimeline(version, { scale: DEMO }) };
+      S = { ...saved, version, steps: buildTimeline(version, { scale: SCALE }) };
       return renderDone();
     } catch {
       clearSession();

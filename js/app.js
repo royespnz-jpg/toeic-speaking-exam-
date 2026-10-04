@@ -53,10 +53,20 @@ async function loadManifest() {
 
 // The exam files are encrypted; their key is kept in the teacher's Google
 // Script, which gives it out only while the exam is open.
-async function examKey() {
-  if (!scriptUrl()) throw new Error('This exam is not connected to your teacher’s sheet. Ask your teacher for the exam link.');
-  return (await post({ type: 'key' })).key;
+async function examKey(url = scriptUrl()) {
+  if (!url) throw new Error('This exam is not connected to your teacher’s sheet. Ask your teacher for the exam link.');
+  try {
+    return (await post({ type: 'key' }, url)).key;
+  } catch (err) {
+    // A script from before the key moved there doesn't know this request.
+    if (/Pedido desconocido/.test(err.message)) throw new Error(OLD_SCRIPT);
+    throw err;
+  }
 }
+
+const OLD_SCRIPT =
+  'Your teacher’s Google Script is an older version, so it can’t open the exam yet. ' +
+  'Teacher: in Apps Script, Implementar → Administrar implementaciones → ✏️ → Versión: Nueva versión → Implementar.';
 
 async function loadVersion(n, key) {
   const res = await fetch(`exam/v${String(n).padStart(2, '0')}.bin`, { cache: 'no-cache' });
@@ -484,8 +494,9 @@ async function renderTeacher(message = '') {
     </section>
     <section class="card">
       <h2>3 · The exam code</h2>
-      <p>Students need the exam code to open their version. Write it on the board when the exam starts. The site doesn’t
-        keep it: the exam files are encrypted with it.</p>
+      <p>The exam files are encrypted. Your script keeps their code and gives it to the exam while it is open, so students
+        only write their name and choose their speaker. In your sheet: <b>Speaking Exam → Guardar el código del examen</b>
+        (once), and <b>Abrir el examen</b> / <b>Cerrar el examen</b> to let students in or not. <i>Test</i> above checks it.</p>
       <p><a class="btn ghost" href="${esc(link('demo=1'))}">Try the exam with short clocks</a></p>
     </section>
   </main>`;
@@ -530,11 +541,21 @@ document.addEventListener('click', async (e) => {
     const status = app.querySelector('[data-teacher-status]');
     const url = app.querySelector('[name="url"]').value.trim();
     status.textContent = 'Testing…';
+    let info;
     try {
-      const info = await ping(url);
-      status.textContent = `✓ Connected to “${info.sheet}”. Press Save.`;
+      info = await ping(url);
     } catch (err) {
       status.textContent = `Couldn’t connect: ${err.message}`;
+      return;
+    }
+    try {
+      await examKey(url);
+      status.textContent = `✓ Connected to “${info.sheet}”, and the exam is open. Press Save.`;
+    } catch (err) {
+      const why = err.message === OLD_SCRIPT
+        ? 'this URL still runs the old script. In Apps Script: Implementar → Administrar implementaciones → ✏️ → Versión: Nueva versión → Implementar.'
+        : err.message;
+      status.textContent = `Connected to “${info.sheet}”, but students can’t start yet: ${why}`;
     }
   }
 });

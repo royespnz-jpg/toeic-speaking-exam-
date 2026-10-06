@@ -308,11 +308,9 @@ function taskHtml(step) {
   const p = PARTS[step.part];
   const head = `<p class="task-label">${esc(step.question ? `Question ${step.question}` : p.label)}</p><h2>${esc(p.title)}</h2>`;
   const directions = `<p class="directions"><b>Directions:</b> ${esc(p.directions)}</p>`;
-  const picture = `<figure class="picture"><img src="${v.picture}" alt="The picture to describe"></figure>`;
-  // The picture is on screen from the directions of Question 3 to the end of the answer.
-  if (step.type === 'part') return head + directions + (step.part === 'picture' ? picture : '');
+  if (step.type === 'part') return head + directions;
   if (step.part === 'read') return `${head}<div class="reading">${esc(v.readAloud).replace(/\n/g, '<br>')}</div>`;
-  if (step.part === 'picture') return head + picture;
+  if (step.part === 'picture') return `${head}<figure class="picture"><img src="${v.picture}" alt="The picture to describe"></figure>`;
   // Questions 4–7: the narrator's context, then each question.
   const narrator = `<p class="narrator"><span>Narrator</span>${esc(v.narrator)}</p>`;
   if (step.narrator) return head + narrator;
@@ -341,13 +339,18 @@ async function runExam() {
     persist();
     const step = S.steps[i];
     const task = app.querySelector('[data-task]');
-    const html = taskHtml(step);
-    if (task.dataset.html !== html) {
+    const show = (html) => {
+      if (task.dataset.html === html) return;
       task.innerHTML = html;
       task.dataset.html = html;
       // New content starts at the top (on a phone, the page may be scrolled down from the text).
       window.scrollTo({ top: 0 });
-    }
+    };
+    // The picture appears only when its preparation clock starts: during the
+    // directions there is nothing to look at, so no extra time to think.
+    const pictureLater = step.type === 'prep' && step.part === 'picture';
+    if (!pictureLater) show(taskHtml(step));
+    else if (!task.dataset.html) show(taskHtml({ type: 'part', part: step.part }));
     const current = step.id || (step.question ? `q${step.question}` : RESPONSES.find((r) => r.part === step.part)?.id);
     app.querySelectorAll('.progress li').forEach((li) => li.classList.toggle('now', li.dataset.q === current));
 
@@ -359,6 +362,7 @@ async function runExam() {
       idleClock(clock, { phase: 'Preparation time', time: fmt(step.seconds) });
       setCue(step.say);
       await speak(step.say);
+      if (pictureLater) show(taskHtml(step));
       setCue('Prepare your answer.', 'prep');
       await runClock(clock, step.seconds, { mode: 'prep', phase: 'Preparation time', sub: 'Prepare' }).done;
     } else if (step.type === 'response') {
